@@ -8,6 +8,7 @@ import aiohttp
 
 TOKEN = os.environ["DISCORD_TOKEN"]
 CHANNEL_ID = int(os.environ["DISCORD_CHANNEL_ID"])
+
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
@@ -42,6 +43,11 @@ async def create_mail_account():
 async def fetch_inbox(token):
     async with aiohttp.ClientSession(headers={"Authorization": f"Bearer {token}"}) as session:
         async with session.get(f"{MAILTM_API}/messages") as r:
+            return await r.json()
+
+async def fetch_message_content(token, message_id):
+    async with aiohttp.ClientSession(headers={"Authorization": f"Bearer {token}"}) as session:
+        async with session.get(f"{MAILTM_API}/messages/{message_id}") as r:
             return await r.json()
 
 @client.event
@@ -86,11 +92,27 @@ async def on_message(message):
         if not messages:
             await message.channel.send("📭 Inbox is empty.")
         else:
-            reply = f"📬 **Inbox for token `{user_token}`:**\n"
+            reply = f"📬 **Inbox for token `{user_token}`:**"
             for m in messages[:5]:
                 sender = m['from']['address']
                 subject = m['subject']
-                reply += f"\n- **From:** `{sender}` | **Subject:** `{subject}`"
-            await message.channel.send(reply)
+                msg_id = m['id']
+
+                full_msg = await fetch_message_content(token_map[user_token]["api_token"], msg_id)
+                body = full_msg.get('text', '') or full_msg.get('html', '')
+                
+                # Truncate if too long for discord message
+                if len(body) > 1500:
+                    body = body[:1500] + "\n...[truncated]"
+
+                reply += f"\n\n**From:** `{sender}`\n**Subject:** `{subject}`\n**Body:**\n{body}\n{'-'*30}"
+
+            # Discord message limit ~2000, so send in chunks if needed
+            if len(reply) > 2000:
+                chunks = [reply[i:i+1900] for i in range(0, len(reply), 1900)]
+                for chunk in chunks:
+                    await message.channel.send(chunk)
+            else:
+                await message.channel.send(reply)
 
 client.run(TOKEN)
