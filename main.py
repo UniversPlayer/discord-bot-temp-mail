@@ -6,9 +6,8 @@ import asyncio
 import json
 import aiohttp
 
-TOKEN = input("Enter your Discord Bot Token: ")
-CHANNEL_ID = int(input("Enter the Channel ID to allow commands in: "))
-
+TOKEN = os.environ["DISCORD_TOKEN"]
+CHANNEL_ID = int(os.environ["DISCORD_CHANNEL_ID"])
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
